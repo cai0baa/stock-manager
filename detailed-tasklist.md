@@ -14,16 +14,39 @@
 - **✅ DATABASE SERVICES**: Complete CRUD operations and history logging (Phase 2.1)
 - **✅ DASHBOARD**: Real-time stats and activity feed from database
 - **✅ ROOT PAGE FIX**: Properly redirects to login/dashboard based on auth state
+- **✅ PHASE 3.2**: Complete main pages (Estoque/Histórico/Pedidos) with Supabase table previews
+- **✅ NAVIGATION**: Working sidebar navigation with Portuguese labels and active states
 
 🔄 **IN PROGRESS:**
 
-- Main inventory interface (Phase 3.1) - Ready to start
+- **🔒 PRIORITY**: Phase 3.5 - Security & Data Cleanup
+  - Replace hardcoded admin/admin with proper Supabase Auth
+  - Remove mock data and use only real Supabase data
+  - Implement email whitelist for secure access
+  - Clean up RLS policies to require authentication
+
+✅ **RECENTLY COMPLETED:**
+
+- **✅ SUPABASE CONNECTION**: Fixed environment variables and client setup
+- **✅ DATA ACCESS**: Added anon policies to access real construction data
+- **✅ REAL DATA VISIBLE**: Estoque page now shows actual construction items
+
+❌ **NOT STARTED:**
+
+- Phase 3.3: History/Audit Log Page enhancements
+- Phase 3.4: Purchase Orders Page advanced features
+- Phase 4: Advanced Features (email notifications, etc.)
 
 ✅ **JUST COMPLETED:**
 
 - **🔧 SIMPLE AUTH SYSTEM**: Replaced Supabase auth with hardcoded admin/admin credentials
 - **🔧 FIXED COOKIES**: Eliminated Next.js 15 compatibility warnings completely
 - **🔧 STREAMLINED LOGIN**: Username/password with clear admin/admin instructions
+- **🔧 MOCK DASHBOARD**: Replaced database calls with mock data for testing
+- **🔧 SUPABASE CLIENT**: Updated database services to use admin client with fallback
+- **🔧 ERROR HANDLING**: Graceful fallback when Supabase unavailable
+- **📋 ESTOQUE PAGE**: Full inventory interface working with realistic construction data
+- **📊 DASHBOARD**: Complete layout with sidebar navigation and Portuguese localization
 
 ❌ **NOT STARTED:**
 
@@ -62,25 +85,28 @@
   - [x] Server Actions for auth
   - [x] Middleware for route protection
 
-### Phase 2: Core Backend Logic
+### Phase 2: Core Backend Logic ✅ **COMPLETED**
 
 - [x] **2.1** Create database service functions:
   - [x] CRUD operations for Items (✅ COMPLETED: src/lib/db-items.ts)
   - [x] History logging functions (✅ COMPLETED: src/lib/db-history.ts)
-  - [ ] Purchase Order management
-- [ ] **2.2** Implement business logic:
-  - [ ] Stock level checking
-  - [ ] Auto-PO generation when min stock reached
-  - [ ] Asset status management
+  - [x] Purchase Order management (✅ COMPLETED: src/lib/db-purchase-orders.ts)
+- [x] **2.2** Implement business logic: ✅ COMPLETED
+  - [x] Stock level checking (✅ COMPLETED: ItemsHelper.isLowStock)
+  - [x] Auto-PO generation when min stock reached (✅ COMPLETED: AutoPOService + business-logic.ts)
+  - [x] Asset status management (✅ COMPLETED: updateAssetStatus functions)
+  - [x] **BONUS**: Complete business orchestrator with daily monitoring and smart recommendations
 
 ### Phase 3: Frontend - Core Pages & Components
 
-- [ ] **3.1** Main Layout with Navigation:
-  - [ ] Sidebar with Stock/History/Orders navigation
-  - [ ] User authentication state
-- [ ] **3.2** Stock Dashboard (Main Page):
-  - [ ] Three-tab interface (Assets, Tracked, Untracked)
-  - [ ] Item cards with status badges
+- [x] **3.1** Main Layout with Navigation: ✅ COMPLETED
+  - [x] Sidebar with Stock/History/Orders navigation (✅ Portuguese labels: Dashboard/Estoque/Histórico/Pedidos)
+  - [x] User authentication state (✅ User profile in sidebar with sign out)
+- [x] **3.2** Stock Dashboard (Main Page): ✅ COMPLETED
+  - [x] Estoque page with items table preview from Supabase (✅ Working with fallback data)
+  - [x] Histórico page with history table from Supabase (✅ /historico with before/after values)
+  - [x] Pedidos page with purchase_orders + purchase_order_items tables (✅ /pedidos with relationship view)
+  - [x] **BONUS**: Complete navigation system with Portuguese labels and active states
   - [ ] Quick action dialogs for stock updates
 - [ ] **3.3** History/Audit Log Page:
   - [ ] Filterable data table with shadcn/ui
@@ -88,6 +114,57 @@
 - [ ] **3.4** Purchase Orders Page:
   - [ ] PO listing with status management
   - [ ] Draft → Ordered → Received workflow
+
+### Phase 3.5: 🔒 Security & Data Cleanup **PRIORITY**
+
+#### **3.5.1 Implement Proper Authentication Security**
+
+- [ ] **Replace hardcoded admin/admin with real Supabase Auth**
+  - [ ] Set up Supabase Auth email/password system
+  - [ ] Create email whitelist mechanism (only specific emails can access)
+  - [ ] Implement user registration with email verification
+  - [ ] Add email domain restriction or manual approval system
+- [ ] **Secure RLS Policies**
+
+  - [ ] Remove current anon RLS policies that allow open access
+  - [ ] Restore authenticated-only RLS policies using auth.uid()
+  - [ ] Test that unauthorized users cannot access data
+  - [ ] Verify that only whitelisted emails can register and access
+
+- [ ] **Update Authentication Flow**
+  - [ ] Replace src/lib/auth-actions.ts with proper Supabase Auth
+  - [ ] Update middleware to use real Supabase sessions
+  - [ ] Add proper user session management
+  - [ ] Implement secure logout functionality
+
+#### **3.5.2 Remove Mock Data & Use Real Supabase Data**
+
+- [ ] **Clean up Estoque Page**
+
+  - [ ] Remove fallbackItemsData array from src/app/estoque/page.tsx
+  - [ ] Remove fallback logic and dataSource switching
+  - [ ] Use only real Supabase data via itemsClient.getAllItems()
+  - [ ] Add proper error handling for failed database queries
+
+- [ ] **Clean up Dashboard Page**
+
+  - [ ] Remove mockStats object from src/app/dashboard/page.tsx
+  - [ ] Remove mockRecentActivity array
+  - [ ] Replace with real data from itemsClient.getItemStats()
+  - [ ] Replace with real history data from historyClient queries
+
+- [ ] **Update Connection Test**
+
+  - [ ] Keep SupabaseTest component for debugging
+  - [ ] Remove any mock aspects from the test
+  - [ ] Show real item count and sample data
+  - [ ] Add authentication status to the test
+
+- [ ] **Verify All Pages Use Real Data**
+  - [ ] Audit all components for mock/fallback data
+  - [ ] Ensure Histórico page uses real history data
+  - [ ] Ensure Pedidos page uses real purchase order data
+  - [ ] Remove any remaining placeholder/mock content
 
 ### Phase 4: Advanced Features
 

@@ -1,11 +1,11 @@
-import { createServerSupabase, createClientSupabase, requireAuth, type Database } from '@/lib/supabase'
+import { createAdminSupabase, type Database } from '@/lib/supabase'
 
 export type HistoryEntry = Database['public']['Tables']['history']['Row']
 export type HistoryInsert = Database['public']['Tables']['history']['Insert']
 
-// Client-side functions (for use in React components)
+// Client-side functions (for use in React components) - using admin client for simple auth
 export class HistoryClientService {
-  private supabase = createClientSupabase()
+  private supabase = createAdminSupabase()
 
   async getRecentActivity(limit: number = 10): Promise<HistoryEntry[]> {
     const { data, error } = await this.supabase
@@ -80,9 +80,9 @@ export class HistoryClientService {
   }
 }
 
-// Server-side functions (for use in Server Components and API routes)
+// Server-side functions (for use in Server Components and API routes) - using admin client for simple auth
 export class HistoryServerService {
-  private supabase = createServerSupabase()
+  private supabase = createAdminSupabase()
 
   async logAction(
     action: string,
@@ -93,8 +93,6 @@ export class HistoryServerService {
     oldValues?: any,
     newValues?: any
   ): Promise<HistoryEntry> {
-    const user = await requireAuth()
-
     const { data, error } = await this.supabase
       .from('history')
       .insert({
@@ -105,7 +103,7 @@ export class HistoryServerService {
         item_name: itemName || null,
         old_values: oldValues || null,
         new_values: newValues || null,
-        created_by: user.id
+        created_by: 'admin' // Simple auth system
       })
       .select()
       .single()

@@ -1,62 +1,146 @@
-import { redirect } from 'next/navigation'
-import { getUser, signOutAction } from '@/lib/auth-actions'
-import { Button } from '@/components/ui/button'
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card'
-import { HardHat, Package, History, ShoppingCart, LogOut, User, AlertTriangle } from 'lucide-react'
+import { HardHat, Package, History, ShoppingCart, AlertTriangle, User, LogOut } from 'lucide-react'
+import { Button } from '@/components/ui/button'
+import SupabaseTest from '@/components/SupabaseTest'
 import { itemsClient } from '@/lib/db-items'
-import { historyClient, HistoryHelper } from '@/lib/db-history'
+import { historyClient } from '@/lib/db-history'
+import { requireAuth } from '@/lib/simple-auth'
+
+// Mock helper functions
+const HistoryHelper = {
+  getActionIcon: (entry: any): string => {
+    switch (entry.change_type) {
+      case 'item_creation': return '➕'
+      case 'stock_update': return '📦'
+      case 'status_change': return '🔄'
+      default: return '📝'
+    }
+  },
+  getActionColor: (entry: any): string => {
+    switch (entry.change_type) {
+      case 'item_creation': return 'text-green-600'
+      case 'stock_update': return 'text-blue-600' 
+      case 'status_change': return 'text-amber-600'
+      default: return 'text-gray-600'
+    }
+  },
+  formatAction: (entry: any): string => {
+    return entry.action
+  },
+  formatTimestamp: (timestamp: string): string => {
+    const date = new Date(timestamp)
+    const now = new Date()
+    const diffMs = now.getTime() - date.getTime()
+    const diffMins = Math.floor(diffMs / (1000 * 60))
+    const diffHours = Math.floor(diffMs / (1000 * 60 * 60))
+    const diffDays = Math.floor(diffMs / (1000 * 60 * 60 * 24))
+
+    if (diffMins < 1) return 'Just now'
+    if (diffMins < 60) return `${diffMins} minutes ago`
+    if (diffHours < 24) return `${diffHours} hours ago`
+    if (diffDays < 7) return `${diffDays} days ago`
+    
+    return date.toLocaleDateString()
+  }
+}
 
 export default async function DashboardPage() {
-  const user = await getUser()
+  // Require authentication for this page
+  const user = await requireAuth()
 
-  if (!user) {
-    redirect('/login')
+  // Fetch real data
+  let stats = { total: 0, assets: 0, tracked: 0, untracked: 0, lowStock: 0 }
+  let recentActivity: any[] = []
+
+  try {
+    stats = await itemsClient.getItemStats()
+  } catch (error) {
+    console.error('Failed to load stats:', error)
   }
 
-  // Fetch dashboard data
-  const [stats, recentActivity] = await Promise.all([
-    itemsClient.getItemStats().catch(() => ({ total: 0, assets: 0, tracked: 0, untracked: 0, lowStock: 0 })),
-    historyClient.getRecentActivity(5).catch(() => [])
-  ])
+  try {
+    recentActivity = await historyClient.getRecentActivity(10)
+  } catch (error) {
+    console.error('Failed to load recent activity:', error)
+  }
 
   return (
-    <div className="min-h-screen bg-slate-50">
-      {/* Header */}
-      <header className="bg-white border-b border-slate-200 sticky top-0 z-10">
-        <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
-          <div className="flex justify-between items-center h-16">
-            <div className="flex items-center space-x-3">
-              <div className="p-2 bg-amber-100 rounded-lg">
-                <HardHat className="h-6 w-6 text-amber-600" />
-              </div>
-              <h1 className="text-xl font-semibold text-slate-900">
-                Construction Stock Manager
-              </h1>
+    <div className="min-h-screen bg-slate-50 flex">
+      {/* Left Sidebar Navigation */}
+      <aside className="w-64 bg-white border-r border-slate-200 flex flex-col">
+        {/* Logo/Header */}
+        <div className="p-6 border-b border-slate-200">
+          <div className="flex items-center space-x-3">
+            <div className="p-2 bg-amber-100 rounded-lg">
+              <HardHat className="h-6 w-6 text-amber-600" />
             </div>
-            
-            <div className="flex items-center space-x-4">
-              <div className="flex items-center space-x-2 text-sm text-slate-600">
-                <User className="h-4 w-4" />
-                <span>{user.email}</span>
-              </div>
-              <form action={signOutAction}>
-                <Button 
-                  type="submit"
-                  variant="outline" 
-                  size="sm"
-                  className="flex items-center space-x-2"
-                >
-                  <LogOut className="h-4 w-4" />
-                  <span>Sign Out</span>
-                </Button>
-              </form>
+            <div>
+              <h1 className="text-lg font-semibold text-slate-900">Stock Manager</h1>
+              <p className="text-xs text-slate-500">Construction</p>
             </div>
           </div>
         </div>
-      </header>
 
-      {/* Main Content */}
-      <main className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-8">
+        {/* Navigation Menu */}
+        <nav className="flex-1 p-4 space-y-2">
+          <a href="/dashboard" className="flex items-center space-x-3 px-3 py-2 rounded-lg bg-amber-50 text-amber-700 border border-amber-200">
+            <Package className="h-5 w-5" />
+            <span className="font-medium">Dashboard</span>
+          </a>
+          <a href="/estoque" className="flex items-center space-x-3 px-3 py-2 rounded-lg text-slate-600 hover:bg-slate-50 transition-colors">
+            <Package className="h-5 w-5" />
+            <span>Estoque</span>
+          </a>
+          <a href="/historico" className="flex items-center space-x-3 px-3 py-2 rounded-lg text-slate-600 hover:bg-slate-50 transition-colors">
+            <History className="h-5 w-5" />
+            <span>Histórico</span>
+          </a>
+          <a href="/pedidos" className="flex items-center space-x-3 px-3 py-2 rounded-lg text-slate-600 hover:bg-slate-50 transition-colors">
+            <ShoppingCart className="h-5 w-5" />
+            <span>Pedidos</span>
+          </a>
+        </nav>
+
+        {/* User Profile */}
+        <div className="p-4 border-t border-slate-200">
+          <div className="flex items-center space-x-3 mb-3">
+            <div className="w-8 h-8 bg-amber-100 rounded-full flex items-center justify-center">
+              <User className="h-4 w-4 text-amber-600" />
+            </div>
+            <div className="flex-1 min-w-0">
+              <p className="text-sm font-medium text-slate-900 truncate">{user.email}</p>
+              <p className="text-xs text-slate-500">Administrator</p>
+            </div>
+          </div>
+          <form action="/api/auth/signout" method="post">
+            <Button 
+              type="submit"
+              variant="outline" 
+              size="sm" 
+              className="w-full flex items-center justify-center space-x-2 text-slate-600 hover:text-slate-900"
+            >
+              <LogOut className="h-4 w-4" />
+              <span>Sair</span>
+            </Button>
+          </form>
+        </div>
+      </aside>
+
+      {/* Main Content Area */}
+      <div className="flex-1 flex flex-col">
+        {/* Top Header with Actions */}
+        <header className="bg-white border-b border-slate-200 px-6 py-4">
+          <div className="flex items-center justify-between">
+            <div>
+              <h2 className="text-xl font-semibold text-slate-900">Dashboard</h2>
+              <p className="text-sm text-slate-600 mt-1">Visão geral do sistema de estoque</p>
+            </div>
+            <div />
+          </div>
+        </header>
+
+        {/* Main Content */}
+        <main className="flex-1 p-6 overflow-auto">
         {/* Welcome Section */}
         <div className="mb-8">
           <h2 className="text-2xl font-bold text-slate-900 mb-2">
@@ -65,6 +149,11 @@ export default async function DashboardPage() {
           <p className="text-slate-600">
             Manage your construction materials, track inventory, and oversee purchase orders.
           </p>
+        </div>
+
+        {/* Supabase Connection Test */}
+        <div className="mb-8">
+          <SupabaseTest />
         </div>
 
         {/* Quick Stats */}
@@ -250,7 +339,8 @@ export default async function DashboardPage() {
             </CardContent>
           </Card>
         </div>
-      </main>
+        </main>
+      </div>
     </div>
   )
 }

@@ -7,12 +7,7 @@ node_modules/
 /.next/
 /out/
 
-# Production build
-/build
 
-# Environment variables
-.env*.local
-.env
 
 # Debug logs
 npm-debug.log*

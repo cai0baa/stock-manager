@@ -1,8 +1,7 @@
-import { createClientComponentClient, createServerComponentClient } from '@supabase/auth-helpers-nextjs'
-import { createClient } from '@supabase/supabase-js'
-import { cookies } from 'next/headers'
+import { createBrowserClient } from '@supabase/ssr'
+import { createServerClient } from '@supabase/ssr'
 
-// Database types for TypeScript
+// Keep your existing Database types (they're good!)
 export type Database = {
   public: {
     Tables: {
@@ -185,48 +184,101 @@ export type Database = {
   }
 }
 
-// Client-side Supabase client for use in React components
-export const createClientSupabase = () => {
-  return createClientComponentClient<Database>()
-}
+// 1. Client-side client (for React components)
+export function createClient() {
+  const supabaseUrl = process.env.NEXT_PUBLIC_SUPABASE_URL
+  const supabaseKey = process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY
 
-// Server-side Supabase client for use in Server Components and API routes
-export const createServerSupabase = () => {
-  const cookieStore = cookies()
-  return createServerComponentClient<Database>({ cookies: () => cookieStore })
-}
-
-// Admin client (for server-side operations that need elevated permissions)
-export const createAdminSupabase = () => {
-  const supabaseUrl = process.env.NEXT_PUBLIC_SUPABASE_URL!
-  const supabaseServiceKey = process.env.SUPABASE_SERVICE_ROLE_KEY!
-  
-  if (!supabaseUrl || !supabaseServiceKey) {
-    throw new Error('Missing Supabase admin configuration')
+  if (!supabaseUrl || !supabaseKey) {
+    console.error('Missing Supabase environment variables:', {
+      url: supabaseUrl ? 'Set' : 'Missing',
+      key: supabaseKey ? 'Set' : 'Missing'
+    })
+    throw new Error('Missing Supabase environment variables')
   }
-  
-  return createClient<Database>(supabaseUrl, supabaseServiceKey, {
-    auth: {
-      autoRefreshToken: false,
-      persistSession: false
-    }
-  })
+
+  return createBrowserClient<Database>(supabaseUrl, supabaseKey)
 }
 
-// Helper function to get current user
-export const getCurrentUser = async () => {
-  const supabase = createServerSupabase()
-  const { data: { user }, error } = await supabase.auth.getUser()
-  
-  if (error || !user) {
+// 2. Server-side client (for Server Components, Server Actions, Route Handlers)
+export async function createServerSupabaseClient() {
+  const { cookies } = await import('next/headers')
+  const supabaseUrl = process.env.NEXT_PUBLIC_SUPABASE_URL
+  const supabaseKey = process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY
+
+  if (!supabaseUrl || !supabaseKey) {
+    console.error('Missing Supabase environment variables:', {
+      url: supabaseUrl ? 'Set' : 'Missing',
+      key: supabaseKey ? 'Set' : 'Missing'
+    })
+    throw new Error('Missing Supabase environment variables')
+  }
+
+  const cookieStore = await cookies()
+
+  return createServerClient<Database>(
+    supabaseUrl,
+    supabaseKey,
+    {
+      cookies: {
+        getAll() {
+          return cookieStore.getAll()
+        },
+        setAll(cookiesToSet) {
+          try {
+            cookiesToSet.forEach(({ name, value, options }) =>
+              cookieStore.set(name, value, options)
+            )
+          } catch {
+            // The `setAll` method was called from a Server Component.
+            // This can be ignored if you have middleware refreshing
+            // user sessions.
+          }
+        },
+      },
+    }
+  )
+}
+
+// Note: Middleware client removed as middleware.ts was deleted
+
+// Simple admin client for your current simple auth system
+export function createAdminClient() {
+  const supabaseUrl = process.env.NEXT_PUBLIC_SUPABASE_URL
+  const supabaseKey = process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY
+
+  if (!supabaseUrl || !supabaseKey) {
+    console.warn('Missing Supabase environment variables - using mock mode:', {
+      url: supabaseUrl ? 'Set' : 'Missing',
+      key: supabaseKey ? 'Set' : 'Missing'
+    })
     return null
   }
-  
-  return user
+
+  return createBrowserClient<Database>(supabaseUrl, supabaseKey)
+}
+
+// Legacy compatibility - update your existing code gradually
+export const createAdminSupabase = createAdminClient
+
+// Helper function for authentication (simplified)
+export async function getCurrentUser() {
+  try {
+    const supabase = await createServerSupabaseClient()
+    const { data: { user }, error } = await supabase.auth.getUser()
+    
+    if (error || !user) {
+      return null
+    }
+    
+    return user
+  } catch {
+    return null
+  }
 }
 
 // Helper function to require authentication
-export const requireAuth = async () => {
+export async function requireAuth() {
   const user = await getCurrentUser()
   
   if (!user) {

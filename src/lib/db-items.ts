@@ -1,4 +1,4 @@
-import { createServerSupabase, createClientSupabase, requireAuth, type Database } from '@/lib/supabase'
+import { createAdminClient, type Database } from '@/lib/supabase'
 
 export type Item = Database['public']['Tables']['items']['Row']
 export type ItemInsert = Database['public']['Tables']['items']['Insert']
@@ -6,12 +6,20 @@ export type ItemUpdate = Database['public']['Tables']['items']['Update']
 export type TrackingType = 'assets' | 'tracked' | 'untracked'
 export type AssetStatus = 'in_stock' | 'on_site' | 'maintenance'
 
-// Client-side functions (for use in React components)
+// Client-side functions (for use in React components) - using admin client for simple auth
 export class ItemsClientService {
-  private supabase = createClientSupabase()
+  private getSupabase() {
+    const supabase = createAdminClient()
+    if (!supabase) {
+      throw new Error('Supabase client not available - check environment variables')
+    }
+    return supabase
+  }
 
   async getAllItems(trackingType?: TrackingType): Promise<Item[]> {
-    let query = this.supabase
+    const supabase = this.getSupabase()
+    
+    let query = supabase
       .from('items')
       .select('*')
       .order('name', { ascending: true })
@@ -30,7 +38,8 @@ export class ItemsClientService {
   }
 
   async getItemById(id: string): Promise<Item | null> {
-    const { data, error } = await this.supabase
+    const supabase = this.getSupabase()
+    const { data, error } = await supabase
       .from('items')
       .select('*')
       .eq('id', id)
@@ -45,7 +54,8 @@ export class ItemsClientService {
   }
 
   async searchItems(searchTerm: string, trackingType?: TrackingType): Promise<Item[]> {
-    let query = this.supabase
+    const supabase = this.getSupabase()
+    let query = supabase
       .from('items')
       .select('*')
       .or(`name.ilike.%${searchTerm}%,description.ilike.%${searchTerm}%,category.ilike.%${searchTerm}%`)
@@ -65,7 +75,8 @@ export class ItemsClientService {
   }
 
   async getLowStockItems(): Promise<Item[]> {
-    const { data, error } = await this.supabase
+    const supabase = this.getSupabase()
+    const { data, error } = await supabase
       .from('items')
       .select('*')
       .eq('tracking_type', 'tracked')
@@ -82,7 +93,8 @@ export class ItemsClientService {
   }
 
   async getItemsByCategory(category: string, trackingType?: TrackingType): Promise<Item[]> {
-    let query = this.supabase
+    const supabase = this.getSupabase()
+    let query = supabase
       .from('items')
       .select('*')
       .eq('category', category)
@@ -102,7 +114,8 @@ export class ItemsClientService {
   }
 
   async getItemStats() {
-    const { data: allItems, error: allError } = await this.supabase
+    const supabase = this.getSupabase()
+    const { data: allItems, error: allError } = await supabase
       .from('items')
       .select('tracking_type')
 
@@ -110,44 +123,53 @@ export class ItemsClientService {
       throw new Error(`Failed to fetch item stats: ${allError.message}`)
     }
 
-    const { data: lowStockItems, error: lowStockError } = await this.supabase
+    const { data: lowStockItems, error: lowStockError } = await supabase
       .from('items')
-      .select('id')
+      .select('id, quantity, min_stock_level')
       .eq('tracking_type', 'tracked')
       .not('min_stock_level', 'is', null)
       .not('quantity', 'is', null)
-      .filter('quantity', 'lt', 'min_stock_level')
 
     if (lowStockError) {
       throw new Error(`Failed to fetch low stock stats: ${lowStockError.message}`)
     }
+
+    // Filter items where quantity < min_stock_level
+    const actualLowStockItems = lowStockItems?.filter(item => 
+      item.quantity !== null && 
+      item.min_stock_level !== null && 
+      (item.quantity as number) < (item.min_stock_level as number)
+    ) || []
 
     const stats = {
       total: allItems?.length || 0,
       assets: allItems?.filter(item => item.tracking_type === 'assets').length || 0,
       tracked: allItems?.filter(item => item.tracking_type === 'tracked').length || 0,
       untracked: allItems?.filter(item => item.tracking_type === 'untracked').length || 0,
-      lowStock: lowStockItems?.length || 0
+      lowStock: actualLowStockItems.length
     }
 
     return stats
   }
 }
 
-// Server-side functions (for use in Server Components and API routes)
+// Server-side functions (for use in Server Components and API routes) - using admin client for simple auth
 export class ItemsServerService {
-  private async getSupabase() {
-    return await createServerSupabase()
+  private getSupabase() {
+    const supabase = createAdminClient()
+    if (!supabase) {
+      throw new Error('Supabase client not available - check environment variables')
+    }
+    return supabase
   }
 
   async createItem(itemData: ItemInsert): Promise<Item> {
-    const user = await requireAuth()
-    
-    const { data, error } = await this.supabase
+    const supabase = this.getSupabase()
+    const { data, error } = await supabase
       .from('items')
       .insert({
         ...itemData,
-        created_by: user.id,
+        created_by: 'admin', // Simple auth system
         updated_at: new Date().toISOString()
       })
       .select()
@@ -160,10 +182,9 @@ export class ItemsServerService {
     return data
   }
 
-  async updateItem(id: string, updates: ItemUpdate): Promise<Item> {
-    const user = await requireAuth()
-
-    const { data, error } = await this.supabase
+    async updateItem(id: string, updates: ItemUpdate): Promise<Item> {
+    const supabase = this.getSupabase()
+    const { data, error } = await supabase
       .from('items')
       .update({
         ...updates,
@@ -181,9 +202,8 @@ export class ItemsServerService {
   }
 
   async deleteItem(id: string): Promise<void> {
-    await requireAuth()
-
-    const { error } = await this.supabase
+    const supabase = this.getSupabase()
+    const { error } = await supabase
       .from('items')
       .delete()
       .eq('id', id)
@@ -194,10 +214,9 @@ export class ItemsServerService {
   }
 
   async updateItemQuantity(id: string, newQuantity: number, notes?: string): Promise<Item> {
-    const user = await requireAuth()
-
+    const supabase = this.getSupabase()
     // Get current item to log the change
-    const { data: currentItem, error: fetchError } = await this.supabase
+    const { data: currentItem, error: fetchError } = await supabase
       .from('items')
       .select('*')
       .eq('id', id)
@@ -208,7 +227,7 @@ export class ItemsServerService {
     }
 
     // Update the item
-    const { data, error } = await this.supabase
+    const { data, error } = await supabase
       .from('items')
       .update({
         quantity: newQuantity,
@@ -229,17 +248,16 @@ export class ItemsServerService {
       { quantity: currentItem.quantity },
       { quantity: newQuantity },
       notes || `Quantity updated from ${currentItem.quantity || 0} to ${newQuantity}`,
-      user.id
+      'admin' // Simple auth system
     )
 
     return data
   }
 
   async updateAssetStatus(id: string, newStatus: AssetStatus, location?: string, notes?: string): Promise<Item> {
-    const user = await requireAuth()
-
+    const supabase = this.getSupabase()
     // Get current item to log the change
-    const { data: currentItem, error: fetchError } = await this.supabase
+    const { data: currentItem, error: fetchError } = await supabase
       .from('items')
       .select('*')
       .eq('id', id)
@@ -259,7 +277,7 @@ export class ItemsServerService {
     }
 
     // Update the item
-    const { data, error } = await this.supabase
+    const { data, error } = await supabase
       .from('items')
       .update(updateData)
       .eq('id', id)
@@ -277,7 +295,7 @@ export class ItemsServerService {
       { status: currentItem.status, location: currentItem.location },
       { status: newStatus, location: location || currentItem.location },
       notes || `Status updated from ${currentItem.status || 'unknown'} to ${newStatus}`,
-      user.id
+      'admin' // Simple auth system
     )
 
     return data
@@ -291,7 +309,8 @@ export class ItemsServerService {
     notes: string,
     userId: string
   ): Promise<void> {
-    const { error } = await this.supabase
+    const supabase = this.getSupabase()
+    const { error } = await supabase
       .from('history')
       .insert({
         item_id: itemId,

@@ -1,52 +1,43 @@
-import { NextRequest, NextResponse } from 'next/server'
+import { NextResponse } from 'next/server'
+import type { NextRequest } from 'next/server'
 
-export async function middleware(req: NextRequest) {
-  const res = NextResponse.next()
+// Get authorized users from environment variable
+const AUTHORIZED_USERS = process.env.AUTHORIZED_USERS?.split(',').map(email => email.trim()) || []
+
+export function middleware(request: NextRequest) {
+  const { pathname } = request.nextUrl
   
-  // Check for session cookie
-  const session = req.cookies.get('construction-auth-session')
-  const isAuthenticated = session?.value === 'authenticated'
-
-  // Protected routes that require authentication
-  const protectedPaths = [
-    '/dashboard',
-    '/stock',
-    '/history',
-    '/purchase-orders',
-    '/profile'
-  ]
-
-  const isProtectedPath = protectedPaths.some(path => 
-    req.nextUrl.pathname.startsWith(path)
-  )
-
-  // If user is not authenticated and trying to access protected route
-  if (isProtectedPath && !isAuthenticated) {
-    const redirectUrl = req.nextUrl.clone()
-    redirectUrl.pathname = '/login'
-    redirectUrl.searchParams.set('redirectedFrom', req.nextUrl.pathname)
-    return NextResponse.redirect(redirectUrl)
+  // Public routes that don't require authentication
+  const publicRoutes = ['/login', '/api/auth']
+  
+  // Check if current path is public
+  const isPublicRoute = publicRoutes.some(route => pathname.startsWith(route))
+  
+  if (isPublicRoute) {
+    return NextResponse.next()
   }
-
-  // If user is authenticated and trying to access login page, redirect to dashboard
-  if (req.nextUrl.pathname === '/login' && isAuthenticated) {
-    const redirectUrl = req.nextUrl.clone()
-    redirectUrl.pathname = '/dashboard'
-    return NextResponse.redirect(redirectUrl)
+  
+  // Check for authentication cookie
+  const userEmail = request.cookies.get('user-email')?.value
+  
+  // If no user email cookie or user not in authorized list, redirect to login
+  if (!userEmail || !AUTHORIZED_USERS.includes(userEmail)) {
+    const loginUrl = new URL('/login', request.url)
+    return NextResponse.redirect(loginUrl)
   }
-
-  return res
+  
+  return NextResponse.next()
 }
 
 export const config = {
   matcher: [
     /*
      * Match all request paths except for the ones starting with:
-     * - api (API routes)
      * - _next/static (static files)
      * - _next/image (image optimization files)
      * - favicon.ico (favicon file)
+     * - public folder
      */
-    '/((?!api|_next/static|_next/image|favicon.ico).*)',
+    '/((?!_next/static|_next/image|favicon.ico|.*\\.(?:svg|png|jpg|jpeg|gif|webp)$).*)',
   ],
-}
+} 
