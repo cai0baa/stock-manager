@@ -4,144 +4,21 @@ import { Button } from '@/components/ui/button'
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card'
 import { HardHat, Package, History, ShoppingCart, LogOut, User, Search, Filter, Calendar } from 'lucide-react'
 import { Input } from '@/components/ui/input'
-
-// Mock history data (representing Supabase history table structure)
-const mockHistoryData = [
-  {
-    id: '1',
-    item_id: '123',
-    item_name: 'Portland Cement',
-    action: 'stock_updated',
-    old_values: { quantity: 30 },
-    new_values: { quantity: 45 },
-    notes: 'Added 15 bags from delivery batch #DCM-2024-001',
-    created_at: '2024-01-20T14:22:00Z',
-    created_by: 'admin',
-    change_type: 'stock_update'
-  },
-  {
-    id: '2',
-    item_id: '456',
-    item_name: 'Hammer Drill Bosch GSB 21-2',
-    action: 'asset_status_changed',
-    old_values: { status: 'on_site', location: 'Construction Site Alpha' },
-    new_values: { status: 'in_stock', location: 'Tool Storage' },
-    notes: 'Returned from Site Alpha after completion of foundation work',
-    created_at: '2024-01-18T16:45:00Z',
-    created_by: 'admin',
-    change_type: 'status_change'
-  },
-  {
-    id: '3',
-    item_id: '789',
-    item_name: 'Steel Rebar 12mm',
-    action: 'stock_updated',
-    old_values: { quantity: 120 },
-    new_values: { quantity: 8 },
-    notes: 'Used 112 meters for building foundation reinforcement',
-    created_at: '2024-01-19T08:30:00Z',
-    created_by: 'admin',
-    change_type: 'stock_update'
-  },
-  {
-    id: '4',
-    item_id: '999',
-    item_name: 'Safety Helmet Class E',
-    action: 'item_created',
-    old_values: null,
-    new_values: { 
-      name: 'Safety Helmet Class E',
-      tracking_type: 'untracked',
-      quantity: 25,
-      category: 'EPI'
-    },
-    notes: 'New safety equipment batch added to inventory',
-    created_at: '2024-01-17T12:15:00Z',
-    created_by: 'admin',
-    change_type: 'item_creation'
-  },
-  {
-    id: '5',
-    item_id: '555',
-    item_name: 'Concrete Mixer 150L',
-    action: 'asset_status_changed',
-    old_values: { status: 'in_stock', location: 'Tool Storage' },
-    new_values: { status: 'on_site', location: 'Construction Site Alpha' },
-    notes: 'Deployed to Site Alpha for concrete work phase',
-    created_at: '2024-01-16T10:20:00Z',
-    created_by: 'admin',
-    change_type: 'status_change'
-  },
-  {
-    id: '6',
-    item_id: '333',
-    item_name: 'PVC Pipe 100mm',
-    action: 'purchase_order_created',
-    old_values: null,
-    new_values: { po_number: 'PO-202401-001', quantity: 50 },
-    notes: 'Auto-generated purchase order due to low stock alert',
-    created_at: '2024-01-15T09:30:00Z',
-    created_by: 'admin',
-    change_type: 'po_creation'
-  }
-]
-
-function getActionIcon(changeType: string) {
-  switch (changeType) {
-    case 'item_creation':
-      return '➕'
-    case 'item_deletion':
-      return '🗑️'
-    case 'stock_update':
-      return '📦'
-    case 'status_change':
-      return '🔄'
-    case 'po_creation':
-      return '🛒'
-    case 'po_status_change':
-      return '📋'
-    default:
-      return '📝'
-  }
-}
-
-function getActionColor(changeType: string) {
-  switch (changeType) {
-    case 'item_creation':
-      return 'text-green-600'
-    case 'item_deletion':
-      return 'text-red-600'
-    case 'stock_update':
-      return 'text-blue-600'
-    case 'status_change':
-      return 'text-amber-600'
-    case 'po_creation':
-      return 'text-purple-600'
-    case 'po_status_change':
-      return 'text-indigo-600'
-    default:
-      return 'text-gray-600'
-  }
-}
-
-function formatTimestamp(timestamp: string) {
-  const date = new Date(timestamp)
-  const now = new Date()
-  const diffMs = now.getTime() - date.getTime()
-  const diffHours = Math.floor(diffMs / (1000 * 60 * 60))
-  const diffDays = Math.floor(diffMs / (1000 * 60 * 60 * 24))
-
-  if (diffHours < 24) return `${diffHours}h atrás`
-  if (diffDays < 7) return `${diffDays}d atrás`
-  
-  return date.toLocaleDateString('pt-BR')
-}
+import { historyClient, HistoryHelper } from '@/lib/db-history'
 
 export default async function HistoricoPage() {
   const user = await getUser()
 
   if (!user) {
     redirect('/login')
+  }
+
+  // Fetch real data from Supabase
+  let historyData: any[] = []
+  try {
+    historyData = await historyClient.getRecentActivity(50)
+  } catch (error) {
+    console.error('Failed to fetch history:', error)
   }
 
   return (
@@ -255,56 +132,64 @@ export default async function HistoricoPage() {
             <CardHeader>
               <CardTitle>Registro de Atividades</CardTitle>
               <CardDescription>
-                Visualização da tabela 'history' do Supabase ({mockHistoryData.length} registros)
+                Visualização da tabela 'history' do Supabase ({historyData.length} registros)
               </CardDescription>
             </CardHeader>
             <CardContent>
-              <div className="space-y-4">
-                {mockHistoryData.map((entry) => (
-                  <div key={entry.id} className="flex items-start space-x-4 p-4 border rounded-lg hover:bg-slate-50 transition-colors">
-                    <div className="text-2xl mt-1">
-                      {getActionIcon(entry.change_type)}
-                    </div>
-                    <div className="flex-1 min-w-0">
-                      <div className="flex items-center justify-between">
-                        <p className={`font-medium ${getActionColor(entry.change_type)}`}>
-                          {entry.action.replace(/_/g, ' ').replace(/\b\w/g, l => l.toUpperCase())}
-                        </p>
-                        <span className="text-sm text-slate-500">
-                          {formatTimestamp(entry.created_at)}
-                        </span>
+              {historyData.length === 0 ? (
+                <div className="text-center py-8 text-slate-500">
+                  <History className="h-12 w-12 mx-auto mb-4 text-slate-300" />
+                  <p>Nenhum registro de histórico encontrado</p>
+                  <p className="text-sm">As atividades aparecerão aqui conforme você usar o sistema</p>
+                </div>
+              ) : (
+                <div className="space-y-4">
+                  {historyData.map((entry: any) => (
+                    <div key={entry.id} className="flex items-start space-x-4 p-4 border rounded-lg hover:bg-slate-50 transition-colors">
+                      <div className="text-2xl mt-1">
+                        {HistoryHelper.getActionIcon(entry)}
                       </div>
-                      <p className="text-slate-900 mt-1">{entry.notes}</p>
-                      {entry.item_name && (
-                        <p className="text-sm text-slate-600 mt-1">
-                          Item: <span className="font-medium">{entry.item_name}</span>
-                        </p>
-                      )}
-                      {entry.old_values && entry.new_values && (
-                        <div className="mt-2 grid grid-cols-2 gap-4 text-xs">
-                          <div className="bg-red-50 p-2 rounded border">
-                            <p className="font-medium text-red-700 mb-1">Antes:</p>
-                            <pre className="text-red-600">{JSON.stringify(entry.old_values, null, 2)}</pre>
-                          </div>
-                          <div className="bg-green-50 p-2 rounded border">
-                            <p className="font-medium text-green-700 mb-1">Depois:</p>
-                            <pre className="text-green-600">{JSON.stringify(entry.new_values, null, 2)}</pre>
-                          </div>
+                      <div className="flex-1 min-w-0">
+                        <div className="flex items-center justify-between">
+                          <p className={`font-medium ${HistoryHelper.getActionColor(entry)}`}>
+                            {HistoryHelper.formatAction(entry)}
+                          </p>
+                          <span className="text-sm text-slate-500">
+                            {HistoryHelper.formatTimestamp(entry.created_at)}
+                          </span>
                         </div>
-                      )}
-                      <div className="flex items-center justify-between mt-2 text-xs text-slate-500">
-                        <span>ID: {entry.id}</span>
-                        <span>Usuário: {entry.created_by}</span>
-                        <span>Tipo: {entry.change_type}</span>
+                        <p className="text-slate-900 mt-1">{entry.notes}</p>
+                        {entry.item_name && (
+                          <p className="text-sm text-slate-600 mt-1">
+                            Item: <span className="font-medium">{entry.item_name}</span>
+                          </p>
+                        )}
+                        {entry.old_values && entry.new_values && (
+                          <div className="mt-2 grid grid-cols-2 gap-4 text-xs">
+                            <div className="bg-red-50 p-2 rounded border">
+                              <p className="font-medium text-red-700 mb-1">Antes:</p>
+                              <pre className="text-red-600">{JSON.stringify(entry.old_values, null, 2)}</pre>
+                            </div>
+                            <div className="bg-green-50 p-2 rounded border">
+                              <p className="font-medium text-green-700 mb-1">Depois:</p>
+                              <pre className="text-green-600">{JSON.stringify(entry.new_values, null, 2)}</pre>
+                            </div>
+                          </div>
+                        )}
+                        <div className="flex items-center justify-between mt-2 text-xs text-slate-500">
+                          <span>ID: {entry.id}</span>
+                          <span>Usuário: {entry.created_by}</span>
+                          <span>Tipo: {entry.change_type}</span>
+                        </div>
                       </div>
                     </div>
-                  </div>
-                ))}
-              </div>
+                  ))}
+                </div>
+              )}
               
               {/* Table Footer */}
               <div className="mt-6 flex items-center justify-between text-sm text-slate-600">
-                <p>Mostrando {mockHistoryData.length} de {mockHistoryData.length} registros</p>
+                <p>Mostrando {historyData.length} de {historyData.length} registros</p>
                 <div className="flex space-x-2">
                   <Button variant="outline" size="sm" disabled>Anterior</Button>
                   <Button variant="outline" size="sm" disabled>Próximo</Button>

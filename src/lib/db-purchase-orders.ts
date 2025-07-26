@@ -1,4 +1,4 @@
-import { createAdminSupabase, type Database } from '@/lib/supabase'
+import { createAdminClient, type Database } from '@/lib/supabase'
 
 export type PurchaseOrder = Database['public']['Tables']['purchase_orders']['Row']
 export type PurchaseOrderInsert = Database['public']['Tables']['purchase_orders']['Insert']
@@ -10,10 +10,17 @@ export type PurchaseOrderItemInsert = Database['public']['Tables']['purchase_ord
 
 // Client-side functions (for use in React components)
 export class PurchaseOrdersClientService {
-  private supabase = createAdminSupabase()
+  private getSupabase() {
+    const supabase = createAdminSupabase()
+    if (!supabase) {
+      throw new Error('Supabase client not available - check environment variables')
+    }
+    return supabase
+  }
 
   async getAllPurchaseOrders(): Promise<PurchaseOrder[]> {
-    const { data, error } = await this.supabase
+    const supabase = this.getSupabase()
+    const { data, error } = await supabase
       .from('purchase_orders')
       .select('*')
       .order('created_at', { ascending: false })
@@ -26,7 +33,8 @@ export class PurchaseOrdersClientService {
   }
 
   async getPOsByStatus(status: POStatus): Promise<PurchaseOrder[]> {
-    const { data, error } = await this.supabase
+    const supabase = this.getSupabase()
+    const { data, error } = await supabase
       .from('purchase_orders')
       .select('*')
       .eq('status', status)
@@ -38,11 +46,31 @@ export class PurchaseOrdersClientService {
 
     return data || []
   }
+
+  async getAllPurchaseOrderItems(): Promise<PurchaseOrderItem[]> {
+    const supabase = this.getSupabase()
+    const { data, error } = await supabase
+      .from('purchase_order_items')
+      .select('*')
+      .order('created_at', { ascending: false })
+
+    if (error) {
+      throw new Error(`Failed to fetch purchase order items: ${error.message}`)
+    }
+
+    return data || []
+  }
 }
 
 // Server-side functions (for use in Server Components and API routes)
 export class PurchaseOrdersServerService {
-  private supabase = createAdminSupabase()
+  private getSupabase() {
+    const supabase = createAdminSupabase()
+    if (!supabase) {
+      throw new Error('Supabase client not available - check environment variables')
+    }
+    return supabase
+  }
 
   async createPurchaseOrder(
     items: Array<{
@@ -60,7 +88,8 @@ export class PurchaseOrdersServerService {
     const poNumber = await this.generatePONumber()
 
     // Create the purchase order
-    const { data: po, error: poError } = await this.supabase
+    const supabase = this.getSupabase()
+    const { data: po, error: poError } = await supabase
       .from('purchase_orders')
       .insert({
         po_number: poNumber,

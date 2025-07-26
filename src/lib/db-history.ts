@@ -1,14 +1,21 @@
-import { createAdminSupabase, type Database } from '@/lib/supabase'
+import { createAdminClient, type Database } from '@/lib/supabase'
 
 export type HistoryEntry = Database['public']['Tables']['history']['Row']
 export type HistoryInsert = Database['public']['Tables']['history']['Insert']
 
 // Client-side functions (for use in React components) - using admin client for simple auth
 export class HistoryClientService {
-  private supabase = createAdminSupabase()
+  private getSupabase() {
+    const supabase = createAdminSupabase()
+    if (!supabase) {
+      throw new Error('Supabase client not available - check environment variables')
+    }
+    return supabase
+  }
 
   async getRecentActivity(limit: number = 10): Promise<HistoryEntry[]> {
-    const { data, error } = await this.supabase
+    const supabase = this.getSupabase()
+    const { data, error } = await supabase
       .from('history')
       .select('*')
       .order('created_at', { ascending: false })
@@ -22,7 +29,8 @@ export class HistoryClientService {
   }
 
   async getItemHistory(itemId: string): Promise<HistoryEntry[]> {
-    const { data, error } = await this.supabase
+    const supabase = this.getSupabase()
+    const { data, error } = await supabase
       .from('history')
       .select('*')
       .eq('item_id', itemId)
@@ -36,7 +44,8 @@ export class HistoryClientService {
   }
 
   async searchHistory(searchTerm: string, limit: number = 50): Promise<HistoryEntry[]> {
-    const { data, error } = await this.supabase
+    const supabase = this.getSupabase()
+    const { data, error } = await supabase
       .from('history')
       .select('*')
       .or(`action.ilike.%${searchTerm}%,notes.ilike.%${searchTerm}%,item_name.ilike.%${searchTerm}%`)
@@ -51,7 +60,8 @@ export class HistoryClientService {
   }
 
   async getHistoryByDateRange(startDate: string, endDate: string): Promise<HistoryEntry[]> {
-    const { data, error } = await this.supabase
+    const supabase = this.getSupabase()
+    const { data, error } = await supabase
       .from('history')
       .select('*')
       .gte('created_at', startDate)
@@ -66,7 +76,8 @@ export class HistoryClientService {
   }
 
   async getHistoryByType(changeType: string): Promise<HistoryEntry[]> {
-    const { data, error } = await this.supabase
+    const supabase = this.getSupabase()
+    const { data, error } = await supabase
       .from('history')
       .select('*')
       .eq('change_type', changeType)
@@ -82,7 +93,13 @@ export class HistoryClientService {
 
 // Server-side functions (for use in Server Components and API routes) - using admin client for simple auth
 export class HistoryServerService {
-  private supabase = createAdminSupabase()
+  private getSupabase() {
+    const supabase = createAdminSupabase()
+    if (!supabase) {
+      throw new Error('Supabase client not available - check environment variables')
+    }
+    return supabase
+  }
 
   async logAction(
     action: string,
@@ -93,7 +110,8 @@ export class HistoryServerService {
     oldValues?: any,
     newValues?: any
   ): Promise<HistoryEntry> {
-    const { data, error } = await this.supabase
+    const supabase = this.getSupabase()
+    const { data, error } = await supabase
       .from('history')
       .insert({
         action,
